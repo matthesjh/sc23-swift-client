@@ -273,6 +273,11 @@ class SCGameHandler: NSObject, XMLParserDelegate {
 
                     if let start = self.lastMoveStart,
                        let destination = self.lastMoveDestination {
+                        if case .occupied(player: let player) = self.gameState[start],
+                           player != self.gameState.currentPlayer {
+                            self.gameState.skipMove()
+                        }
+
                         lastMove = SCMove(start: start, destination: destination)
                     } else if let destination = self.lastMoveDestination {
                         lastMove = SCMove(destination: destination)

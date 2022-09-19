@@ -219,7 +219,6 @@ class SCGameState {
 
     /// Skips the move of the current player.
     func skipMove() {
-        self.turn += 1
         self.currentPlayer.switchPlayer()
     }
 }
