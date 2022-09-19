@@ -150,13 +150,12 @@ class SCGameState {
     /// - Returns: `true` if the move could be performed; otherwise, `false`.
     func performMove(move: SCMove) -> Bool {
         switch move.type {
-            case .dragMove:
-                if let start = move.start,
-                   case .occupied(let player) = self[start],
+            case .dragMove(let start, let destination):
+                if case .occupied(let player) = self[start],
                    player == self.currentPlayer,
-                   case .iceFloe(let fish) = self[move.destination] {
+                   case .iceFloe(let fish) = self[destination] {
                     self.setField(field: SCField(coordinate: start))
-                    self.setField(field: SCField(coordinate: move.destination, state: .occupied(player: self.currentPlayer)))
+                    self.setField(field: SCField(coordinate: destination, state: .occupied(player: self.currentPlayer)))
 
                     switch self.currentPlayer {
                         case .one:
@@ -167,9 +166,9 @@ class SCGameState {
                 } else {
                     return false
                 }
-            case .setMove:
-                if case .iceFloe(fish: 1) = self[move.destination] {
-                    self.setField(field: SCField(coordinate: move.destination, state: .occupied(player: self.currentPlayer)))
+            case .setMove(let destination):
+                if case .iceFloe(fish: 1) = self[destination] {
+                    self.setField(field: SCField(coordinate: destination, state: .occupied(player: self.currentPlayer)))
 
                     switch self.currentPlayer {
                         case .one:
@@ -186,11 +185,5 @@ class SCGameState {
         self.currentPlayer.switchPlayer()
 
         return true
-    }
-
-    /// Skips the move of the current player.
-    func skipMove() {
-        self.turn += 1
-        self.currentPlayer.switchPlayer()
     }
 }

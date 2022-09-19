@@ -80,6 +80,7 @@ while let carg = argvIterator.next() {
                     guard let portValue = UInt16(argValue) else {
                         exit(withError: #"The value "\#(argValue)" can not be converted to a port number!"#)
                     }
+
                     port = portValue
                 case "-r", "--reservation":
                     reservation = argValue

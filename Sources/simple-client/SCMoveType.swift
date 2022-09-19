@@ -1,13 +1,8 @@
 /// The type of a move.
-enum SCMoveType: String, CaseIterable, CustomStringConvertible {
-    /// An existing penguin on the game board is moved to a new field.
-    case dragMove = "DRAG_MOVE"
-    /// A penguin is placed on the game board.
-    case setMove = "SET_MOVE"
-
-    // MARK: - CustomStringConvertible
-
-    var description: String {
-        self.rawValue
-    }
+enum SCMoveType {
+    /// A penguin is moved from the field with the given start coordinate to
+    /// the field with the given destination coordinate.
+    case dragMove(start: SCCoordinate, destination: SCCoordinate)
+    /// A penguin is placed on the field with the given coordinate.
+    case setMove(destination: SCCoordinate)
 }

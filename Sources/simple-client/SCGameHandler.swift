@@ -18,8 +18,6 @@ class SCGameHandler: NSObject, XMLParserDelegate {
 
     /// The room id associated with the joined game.
     private var roomId: String!
-    /// The player of the delegate (game logic).
-    private var player: SCPlayer!
     /// The current state of the game.
     private var gameState: SCGameState!
     /// Indicates whether the game state has been initially created.
@@ -38,6 +36,11 @@ class SCGameHandler: NSObject, XMLParserDelegate {
 
     /// The field that is currently processed.
     private var fieldIndex = 0
+
+    /// The start coordinate of the last move.
+    private var lastMoveStart: SCCoordinate?
+    /// The destination coordinate of the last move.
+    private var lastMoveDestination: SCCoordinate?
 
     /// The characters found by the parser.
     private var foundChars = ""
@@ -121,8 +124,6 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                 }
 
                 switch classAttr {
-                    case "result":
-                        self.gameResultReceived = true
                     case "moveRequest":
                         guard var move = self.delegate?.onMoveRequested() else {
                             parser.abortParsing()
@@ -131,38 +132,55 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                             break
                         }
 
-                        var mv = ""
+                        var moveData = ""
 
                         switch move.type {
-                            case .dragMove:
-                                let from = move.start!.doubledCoordinate
-                                mv += #"<from x="\#(from.x)" y="\#(from.y)" />"#
-                            default:
-                                break
+                            case .dragMove(let start, let destination):
+                                let from = start.doubledCoordinate
+                                let to = destination.doubledCoordinate
+
+                                moveData += #"<from x="\#(from.x)" y="\#(from.y)" /><to x="\#(to.x)" y="\#(to.y)" />"#
+                            case .setMove(let destination):
+                                let to = destination.doubledCoordinate
+
+                                moveData += #"<to x="\#(to.x)" y="\#(to.y)" />"#
                         }
 
-                        let to = move.destination.doubledCoordinate
-                        mv += #"<to x="\#(to.x)" y="\#(to.y)" />"#
-
-                        mv += move.debugHints.reduce(into: "") { $0 += #"<hint content="\#($1)" />"# }
+                        moveData += move.debugHints.reduce(into: "") { $0 += #"<hint content="\#($1)" />"# }
 
                         // Send the move returned by the game logic to the game
                         // server.
-                        self.socket.send(message: #"<room roomId="\#(self.roomId!)"><data class="move">\#(mv)</data></room>"#)
+                        self.socket.send(message: #"<room roomId="\#(self.roomId!)"><data class="move">\#(moveData)</data></room>"#)
+                    case "result":
+                        self.gameResultReceived = true
                     case "welcomeMessage":
                         guard let playerAttr = attributeDict["color"],
-                              let player = SCPlayer(rawValue: playerAttr.uppercased()) else {
+                              let player = SCPlayer(rawValue: playerAttr) else {
                             parser.abortParsing()
                             self.exitGame(withError: "The player of the welcome message is missing or could not be parsed!")
 
                             break
                         }
 
-                        // Save the player of this game client.
-                        self.player = player
+                        // TODO: Select the game logic based on the strategy.
+
+                        // Create the game logic.
+                        self.delegate = SCGameLogic(player: player)
                     default:
                         break
                 }
+            case "from":
+                guard let xAttr = attributeDict["x"],
+                      let x = Int(xAttr),
+                      let yAttr = attributeDict["y"],
+                      let y = Int(yAttr) else {
+                    parser.abortParsing()
+                    self.exitGame(withError: "The start coordinate of the last move could not be parsed!")
+
+                    break
+                }
+
+                self.lastMoveStart = SCCoordinate(x: Int(ceil(Double(x) / 2.0)) - y % 2, y: y)
             case "joined":
                 guard let roomId = attributeDict["roomId"] else {
                     parser.abortParsing()
@@ -173,6 +191,9 @@ class SCGameHandler: NSObject, XMLParserDelegate {
 
                 // Save the room id of the game.
                 self.roomId = roomId
+            case "lastMove":
+                self.lastMoveStart = nil
+                self.lastMoveDestination = nil
             case "left":
                 // Leave the game.
                 parser.abortParsing()
@@ -193,9 +214,21 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                 self.score = SCScore(cause: cause, reason: attributeDict["reason"])
             case "state":
                 self.fieldIndex = 0
+            case "to":
+                guard let xAttr = attributeDict["x"],
+                      let x = Int(xAttr),
+                      let yAttr = attributeDict["y"],
+                      let y = Int(yAttr) else {
+                    parser.abortParsing()
+                    self.exitGame(withError: "The destination coordinate of the last move could not be parsed!")
+
+                    break
+                }
+
+                self.lastMoveDestination = SCCoordinate(x: Int(ceil(Double(x) / 2.0)) - y % 2, y: y)
             case "winner":
-                guard let colorAttr = attributeDict["color"],
-                      let player = SCPlayer(rawValue: colorAttr) else {
+                guard let playerAttr = attributeDict["color"],
+                      let player = SCPlayer(rawValue: playerAttr) else {
                     parser.abortParsing()
                     self.exitGame(withError: "The winner could not be parsed!")
 
@@ -222,15 +255,45 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     self.delegate?.onGameResultReceived(SCGameResult(scores: self.scores, winner: self.winner))
                 }
             case "field":
-                let coordinate = SCCoordinate(x: self.fieldIndex % SCConstants.boardSize, y: self.fieldIndex / SCConstants.boardSize)
+                if !self.gameStateCreated {
+                    let coordinate = SCCoordinate(x: self.fieldIndex % SCConstants.boardSize, y: self.fieldIndex / SCConstants.boardSize)
 
-                if let player = SCPlayer(rawValue: foundChars) {
-                    self.gameState.setField(field: SCField(coordinate: coordinate, state: .occupied(player: player)))
-                } else if let fish = Int(foundChars), fish >= 0 {
-                    self.gameState.setField(field: SCField(coordinate: coordinate, state: fish == 0 ? .empty : .iceFloe(fish: fish)))
+                    if let player = SCPlayer(rawValue: foundChars) {
+                        self.gameState.setField(field: SCField(coordinate: coordinate, state: .occupied(player: player)))
+                    } else if let fish = Int(foundChars),
+                              fish >= 0 {
+                        self.gameState.setField(field: SCField(coordinate: coordinate, state: fish == 0 ? .empty : .iceFloe(fish: fish)))
+                    } else {
+                        parser.abortParsing()
+                        self.exitGame(withError: "The field data could not be parsed!")
+
+                        break
+                    }
+
+                    self.fieldIndex += 1
+                }
+            case "lastMove":
+                var lastMove: SCMove
+
+                if let start = self.lastMoveStart,
+                   let destination = self.lastMoveDestination {
+                    lastMove = SCMove(start: start, destination: destination)
+                } else if let destination = self.lastMoveDestination {
+                    lastMove = SCMove(destination: destination)
+                } else {
+                    parser.abortParsing()
+                    self.exitGame(withError: "The last move could not be parsed!")
+
+                    break
                 }
 
-                self.fieldIndex += 1
+                self.lastMoveStart = nil
+                self.lastMoveDestination = nil
+
+                if !self.gameState.performMove(move: lastMove) {
+                    parser.abortParsing()
+                    self.exitGame(withError: "The last move could not be performed on the game state!")
+                }
             case "part":
                 // Add the found value to the current score object.
                 self.score.values.append(self.foundChars)
@@ -248,17 +311,8 @@ class SCGameHandler: NSObject, XMLParserDelegate {
 
                     // Create the initial game state.
                     self.gameState = SCGameState(startPlayer: startPlayer)
-
-                    // TODO: Select the game logic based on the strategy.
-
-                    // Create the game logic.
-                    self.delegate = SCGameLogic(player: self.player)
                 }
             case "state":
-                if self.gameStateCreated {
-                    self.gameState.skipMove()
-                }
-
                 self.gameStateCreated = true
 
                 // Notify the delegate that the game state has been updated.

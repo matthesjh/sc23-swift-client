@@ -27,7 +27,7 @@ struct SCField {
     /// - Returns: `true` if the field is occupiable; otherwise, `false`.
     func isOccupiable() -> Bool {
         switch self.state {
-            case .iceFloe(fish: _):
+            case .iceFloe(_):
                 return true
             default:
                 return false

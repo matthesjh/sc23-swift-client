@@ -79,19 +79,19 @@ func onMoveRequested() -> SCMove? {
 }
 ```
 
-In addition to the default logic class, you can also implement your own logic classes. To use one of your own logic classes, the simple client offers the possibility to select a strategy (logic class) based on the value of a command-line argument (`-s` or `--strategy`). By default, this feature is disabled. To enable the feature, create a logic instance based on the `strategy` property of the `SCGameHandler.swift` class. This can be done by replacing the existing [code line](Sources/simple-client/SCGameHandler.swift#L255) with a `switch`-statement like the following.
+In addition to the default logic class, you can also implement your own logic classes. To use one of your own logic classes, the simple client offers the possibility to select a strategy (logic class) based on the value of a command-line argument (`-s` or `--strategy`). By default, this feature is disabled. To enable the feature, create a logic instance based on the `strategy` property of the `SCGameHandler.swift` class. This can be done by replacing the existing [code line](Sources/simple-client/SCGameHandler.swift#L168) with a `switch`-statement like the following.
 
 ```swift
 switch self.strategy {
     case "winner":
-        self.delegate = SCWinnerLogic(player: self.player)
+        self.delegate = SCWinnerLogic(player: player)
     case "crazy":
-        self.delegate = SCCrazyGameLogic(player: self.player)
+        self.delegate = SCCrazyGameLogic(player: player)
     case "another_logic":
-        self.delegate = AnotherLogic(player: self.player)
+        self.delegate = AnotherLogic(player: player)
     // ...
     default:
-        self.delegate = SCGameLogic(player: self.player)
+        self.delegate = SCGameLogic(player: player)
 }
 ```
 
