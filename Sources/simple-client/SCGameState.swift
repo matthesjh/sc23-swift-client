@@ -129,15 +129,45 @@ class SCGameState {
         }
     }
 
+    /// Returns the possible drag moves of the current player.
+    ///
+    /// - Returns: The array of possible drag moves.
+    private func possibleDragMoves() -> [SCMove] {
+        self.board.joined().compactMap { (field: SCField) -> SCCoordinate? in
+            if case .occupied(player: let player) = field.state,
+               player == self.currentPlayer {
+                return field.coordinate
+            }
+
+            return nil
+        }.flatMap { start in
+            SCDirection.allCases.flatMap { direction in
+                var moves = [SCMove]()
+
+                for distance in 1..<SCConstants.boardSize {
+                    let destination = start.coordinate(inDirection: direction, withDistance: distance)
+
+                    if destination.x >= 0,
+                       destination.x < SCConstants.boardSize,
+                       destination.y >= 0,
+                       destination.y < SCConstants.boardSize,
+                       case .iceFloe(_) = self[destination] {
+                        moves.append(SCMove(start: start, destination: destination))
+                    } else {
+                        break
+                    }
+                }
+
+                return moves
+            }
+        }
+    }
+
     /// Returns the possible moves of the current player.
     ///
     /// - Returns: The array of possible moves.
     func possibleMoves() -> [SCMove] {
-        if self.turn < 8 {
-            return self.possibleSetMoves()
-        }
-
-        return []
+        self.turn < 8 ? self.possibleSetMoves() : self.possibleDragMoves()
     }
 
     /// Performs the given move on the game board.
@@ -185,5 +215,11 @@ class SCGameState {
         self.currentPlayer.switchPlayer()
 
         return true
+    }
+
+    /// Skips the move of the current player.
+    func skipMove() {
+        self.turn += 1
+        self.currentPlayer.switchPlayer()
     }
 }

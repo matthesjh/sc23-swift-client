@@ -125,28 +125,23 @@ class SCGameHandler: NSObject, XMLParserDelegate {
 
                 switch classAttr {
                     case "moveRequest":
-                        guard var move = self.delegate?.onMoveRequested() else {
-                            parser.abortParsing()
-                            self.exitGame(withError: "No move has been sent!")
-
-                            break
-                        }
-
                         var moveData = ""
 
-                        switch move.type {
-                            case .dragMove(let start, let destination):
-                                let from = start.doubledCoordinate
-                                let to = destination.doubledCoordinate
+                        if var move = self.delegate?.onMoveRequested() {
+                            switch move.type {
+                                case .dragMove(let start, let destination):
+                                    let from = start.doubledCoordinate
+                                    let to = destination.doubledCoordinate
 
-                                moveData += #"<from x="\#(from.x)" y="\#(from.y)" /><to x="\#(to.x)" y="\#(to.y)" />"#
-                            case .setMove(let destination):
-                                let to = destination.doubledCoordinate
+                                    moveData += #"<from x="\#(from.x)" y="\#(from.y)" /><to x="\#(to.x)" y="\#(to.y)" />"#
+                                case .setMove(let destination):
+                                    let to = destination.doubledCoordinate
 
-                                moveData += #"<to x="\#(to.x)" y="\#(to.y)" />"#
+                                    moveData += #"<to x="\#(to.x)" y="\#(to.y)" />"#
+                            }
+
+                            moveData += move.debugHints.reduce(into: "") { $0 += #"<hint content="\#($1)" />"# }
                         }
-
-                        moveData += move.debugHints.reduce(into: "") { $0 += #"<hint content="\#($1)" />"# }
 
                         // Send the move returned by the game logic to the game
                         // server.
@@ -180,7 +175,7 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     break
                 }
 
-                self.lastMoveStart = SCCoordinate(x: Int(ceil(Double(x) / 2.0)) - y % 2, y: y)
+                self.lastMoveStart = SCCoordinate(doubledX: x, doubledY: y)
             case "joined":
                 guard let roomId = attributeDict["roomId"] else {
                     parser.abortParsing()
@@ -225,9 +220,9 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     break
                 }
 
-                self.lastMoveDestination = SCCoordinate(x: Int(ceil(Double(x) / 2.0)) - y % 2, y: y)
+                self.lastMoveDestination = SCCoordinate(doubledX: x, doubledY: y)
             case "winner":
-                guard let playerAttr = attributeDict["color"],
+                guard let playerAttr = attributeDict["team"],
                       let player = SCPlayer(rawValue: playerAttr) else {
                     parser.abortParsing()
                     self.exitGame(withError: "The winner could not be parsed!")
@@ -273,26 +268,27 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     self.fieldIndex += 1
                 }
             case "lastMove":
-                var lastMove: SCMove
+                if self.gameStateCreated {
+                    var lastMove: SCMove? = nil
 
-                if let start = self.lastMoveStart,
-                   let destination = self.lastMoveDestination {
-                    lastMove = SCMove(start: start, destination: destination)
-                } else if let destination = self.lastMoveDestination {
-                    lastMove = SCMove(destination: destination)
-                } else {
-                    parser.abortParsing()
-                    self.exitGame(withError: "The last move could not be parsed!")
+                    if let start = self.lastMoveStart,
+                       let destination = self.lastMoveDestination {
+                        lastMove = SCMove(start: start, destination: destination)
+                    } else if let destination = self.lastMoveDestination {
+                        lastMove = SCMove(destination: destination)
+                    }
 
-                    break
-                }
+                    self.lastMoveStart = nil
+                    self.lastMoveDestination = nil
 
-                self.lastMoveStart = nil
-                self.lastMoveDestination = nil
-
-                if !self.gameState.performMove(move: lastMove) {
-                    parser.abortParsing()
-                    self.exitGame(withError: "The last move could not be performed on the game state!")
+                    if let lastMove = lastMove {
+                        if !self.gameState.performMove(move: lastMove) {
+                            parser.abortParsing()
+                            self.exitGame(withError: "The last move could not be performed on the game state!")
+                        }
+                    } else {
+                        self.gameState.skipMove()
+                    }
                 }
             case "part":
                 // Add the found value to the current score object.
