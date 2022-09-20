@@ -127,21 +127,30 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     case "moveRequest":
                         var moveData = ""
 
-                        // Request a move by the delegate (game logic).
-                        if var move = self.delegate?.onMoveRequested() {
-                            switch move.type {
-                                case .dragMove(let start, let destination):
-                                    let from = start.doubledCoordinate
-                                    let to = destination.doubledCoordinate
-
-                                    moveData += #"<from x="\#(from.x)" y="\#(from.y)" /><to x="\#(to.x)" y="\#(to.y)" />"#
-                                case .setMove(let destination):
-                                    let to = destination.doubledCoordinate
-
-                                    moveData += #"<to x="\#(to.x)" y="\#(to.y)" />"#
+                        if let delegate = self.delegate {
+                            // Adjust the game state if no move is sent by the
+                            // opponent player.
+                            if delegate.player != self.gameState.currentPlayer {
+                                self.gameState.skipMove()
+                                delegate.onGameStateUpdated(SCGameState(withGameState: self.gameState))
                             }
 
-                            moveData += move.debugHints.reduce(into: "") { $0 += #"<hint content="\#($1)" />"# }
+                            // Request a move by the delegate (game logic).
+                            if var move = delegate.onMoveRequested() {
+                                switch move.type {
+                                    case .dragMove(let start, let destination):
+                                        let from = start.doubledCoordinate
+                                        let to = destination.doubledCoordinate
+
+                                        moveData += #"<from x="\#(from.x)" y="\#(from.y)" /><to x="\#(to.x)" y="\#(to.y)" />"#
+                                    case .setMove(let destination):
+                                        let to = destination.doubledCoordinate
+
+                                        moveData += #"<to x="\#(to.x)" y="\#(to.y)" />"#
+                                }
+
+                                moveData += move.debugHints.reduce(into: "") { $0 += #"<hint content="\#($1)" />"# }
+                            }
                         }
 
                         // Send the move returned by the delegate (game logic)

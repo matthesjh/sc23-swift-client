@@ -4,8 +4,8 @@ class SCGameLogic: SCGameHandlerDelegate {
 
     /// The current game state.
     private var gameState: SCGameState!
-    /// The player using this game logic.
-    private let player: SCPlayer
+
+    let player: SCPlayer
 
     // MARK: - Initializers
 

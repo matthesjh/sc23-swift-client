@@ -1,5 +1,12 @@
 /// The protocol which must be implemented by a game logic.
 protocol SCGameHandlerDelegate {
+    // MARK: - Properties
+
+    /// The player using the game logic.
+    var player: SCPlayer { get }
+
+    // MARK: - Methods
+
     /// Sent by the game handler when the game has been ended.
     func onGameEnded()
 
