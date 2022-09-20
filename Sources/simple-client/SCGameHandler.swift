@@ -127,6 +127,7 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     case "moveRequest":
                         var moveData = ""
 
+                        // Request a move by the delegate (game logic).
                         if var move = self.delegate?.onMoveRequested() {
                             switch move.type {
                                 case .dragMove(let start, let destination):
@@ -143,8 +144,8 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                             moveData += move.debugHints.reduce(into: "") { $0 += #"<hint content="\#($1)" />"# }
                         }
 
-                        // Send the move returned by the game logic to the game
-                        // server.
+                        // Send the move returned by the delegate (game logic)
+                        // to the game server.
                         self.socket.send(message: #"<room roomId="\#(self.roomId!)"><data class="move">\#(moveData)</data></room>"#)
                     case "result":
                         self.gameResultReceived = true
@@ -159,7 +160,7 @@ class SCGameHandler: NSObject, XMLParserDelegate {
 
                         // TODO: Select the game logic based on the strategy.
 
-                        // Create the game logic.
+                        // Create the delegate (game logic).
                         self.delegate = SCGameLogic(player: player)
                     default:
                         break
@@ -175,6 +176,7 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     break
                 }
 
+                // Save the start coordinate of the last move.
                 self.lastMoveStart = SCCoordinate(doubledX: x, doubledY: y)
             case "joined":
                 guard let roomId = attributeDict["roomId"] else {
@@ -187,14 +189,16 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                 // Save the room id of the game.
                 self.roomId = roomId
             case "lastMove":
+                // Reset the coordinates of the last move.
                 self.lastMoveStart = nil
                 self.lastMoveDestination = nil
             case "left":
-                // Leave the game.
                 parser.abortParsing()
 
+                // Notify the delegate (game logic) that the game has ended.
                 self.delegate?.onGameEnded()
 
+                // Leave the game.
                 self.exitGame()
             case "score":
                 guard let causeAttr = attributeDict["cause"],
@@ -220,6 +224,7 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     break
                 }
 
+                // Save the destination coordinate of the last move.
                 self.lastMoveDestination = SCCoordinate(doubledX: x, doubledY: y)
             case "winner":
                 guard let playerAttr = attributeDict["team"],
@@ -253,6 +258,8 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                 if !self.gameStateCreated {
                     let coordinate = SCCoordinate(x: self.fieldIndex % SCConstants.boardSize, y: self.fieldIndex / SCConstants.boardSize)
 
+                    // Update the game state with the initial field
+                    // configuration.
                     if let player = SCPlayer(rawValue: foundChars) {
                         self.gameState.setField(field: SCField(coordinate: coordinate, state: .occupied(player: player)))
                     } else if let fish = Int(foundChars),
@@ -283,9 +290,11 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                         lastMove = SCMove(destination: destination)
                     }
 
+                    // Reset the coordinates of the last move.
                     self.lastMoveStart = nil
                     self.lastMoveDestination = nil
 
+                    // Perform the last move on the game state.
                     if let lastMove = lastMove {
                         if !self.gameState.performMove(move: lastMove) {
                             parser.abortParsing()
