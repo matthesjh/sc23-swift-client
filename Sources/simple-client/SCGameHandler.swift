@@ -127,7 +127,7 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     case "moveRequest":
                         var moveData = ""
 
-                        if let delegate = self.delegate {
+                        if let delegate {
                             // Adjust the game state if no move is sent by the
                             // opponent player.
                             if delegate.player != self.gameState.currentPlayer {
@@ -287,16 +287,16 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                 if self.gameStateCreated {
                     var lastMove: SCMove? = nil
 
-                    if let start = self.lastMoveStart,
-                       let destination = self.lastMoveDestination {
-                        if case .occupied(player: let player) = self.gameState[start],
+                    if let lastMoveStart,
+                       let lastMoveDestination {
+                        if case .occupied(player: let player) = self.gameState[lastMoveStart],
                            player != self.gameState.currentPlayer {
                             self.gameState.skipMove()
                         }
 
-                        lastMove = SCMove(start: start, destination: destination)
-                    } else if let destination = self.lastMoveDestination {
-                        lastMove = SCMove(destination: destination)
+                        lastMove = SCMove(start: lastMoveStart, destination: lastMoveDestination)
+                    } else if let lastMoveDestination {
+                        lastMove = SCMove(destination: lastMoveDestination)
                     }
 
                     // Reset the coordinates of the last move.
@@ -304,7 +304,7 @@ class SCGameHandler: NSObject, XMLParserDelegate {
                     self.lastMoveDestination = nil
 
                     // Perform the last move on the game state.
-                    if let lastMove = lastMove {
+                    if let lastMove {
                         if !self.gameState.performMove(move: lastMove) {
                             parser.abortParsing()
                             self.exitGame(withError: "The last move could not be performed on the game state!")
