@@ -1,7 +1,7 @@
 #!/bin/sh
 
 if [ "${RUNNER_OS}" = "Linux" ]; then
-  SWIFT_VERSION_NUMBER=5.7.1
+  SWIFT_VERSION_NUMBER=5.7.2
   SWIFT_PLATFORM=ubuntu$(lsb_release -r -s)
   SWIFT_BRANCH=swift-${SWIFT_VERSION_NUMBER}-release
   SWIFT_VERSION=swift-${SWIFT_VERSION_NUMBER}-RELEASE
